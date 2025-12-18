@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI影视全流程管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#050505',
+                        card: '#0a0a0c',
+                        border: '#1f1f22',
+                        primary: '#6366f1', // AI紫
+                        success: '#10b981', // 完成绿
+                        warning: '#f59e0b', // 警告黄
+                        textMain: '#e4e4e7',
+                        textSub: '#71717a',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'glow-purple': '0 0 20px rgba(99, 102, 241, 0.15)',
+                        'glow-green': '0 0 20px rgba(16, 185, 129, 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 隐藏滚动条但允许滚动 */
+        body::-webkit-scrollbar { width: 6px; }
+        body::-webkit-scrollbar-track { background: #050505; }
+        body::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+
+        /* 自定义日期选择器样式 (适配深色) */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            opacity: 0.5;
+            cursor: pointer;
+        }
+        
+        /* 玻璃拟态与动效 */
+        .glass-card {
+            background: rgba(10, 10, 12, 0.6);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            transform: translateY(-4px);
+            background: rgba(20, 20, 25, 0.8);
+        }
+
+        /* 状态指示线动画 */
+        .timeline-line {
+            transition: height 0.5s ease;
+        }
+
+        /* 自定义复选框动画 */
+        .checkbox-wrapper input:checked + div {
+            background-color: #6366f1;
+            border-color: #6366f1;
+        }
+        .checkbox-wrapper input:checked + div svg {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="bg-bg text-textMain min-h-screen selection:bg-primary selection:text-white">
+
+    <div id="app" class="pb-20">
+        
+        <header class="fixed top-0 w-full z-50 bg-[#050505]/90 backdrop-blur-md border-b border-border h-16 px-8 flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-4">
+                <div class="w-9 h-9 bg-gradient-to-br from-primary to-purple-700 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20">
+                    <i class="ph ph-film-strip text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wide text-white">项目：赛博深空 (The Deep Void)</h1>
+                    <div class="flex items-center gap-3 text-[10px] text-textSub mt-0.5">
+                        <span class="flex items-center gap-1.5"><i class="ph-fill ph-calendar-check text-primary"></i> 截止日期: 2025-12-30</span>
+                        <span class="w-px h-3 bg-white/10"></span>
+                        <span class="text-gray-400">距离交付仅剩 <span class="text-white font-bold">12</span> 天</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-8">
+                <div class="flex flex-col items-end gap-1 min-w-[200px]">
+                    <div class="flex justify-between w-full text-xs font-medium">
+                        <span class="text-textSub">项目总进度</span>
+                        <span :class="overallProgress === 100 ? 'text-success' : 'text-primary'">{{ overallProgress }}%</span>
+                    </div>
+                    <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full transition-all duration-700 ease-out" 
+                             :class="overallProgress === 100 ? 'bg-success' : 'bg-gradient-to-r from-blue-600 to-primary'"
+                             :style="{ width: overallProgress + '%' }"></div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3 pl-6 border-l border-border">
+                    <div class="text-right hidden md:block">
+                        <div class="text-xs text-white font-medium">李明 (Alex)</div>
+                        <div class="text-[10px] text-textSub">项目总监</div>
+                    </div>
+                    <img src="https://i.pravatar.cc/150?u=admin" class="w-9 h-9 rounded-full border border-border cursor-pointer hover:border-primary transition-colors">
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto pt-28 px-6 relative">
+            
+            <div class="absolute left-[54px] top-28 bottom-0 w-0.5 bg-border z-0"></div>
+
+            <div v-for="(stage, index) in stages" :key="index" class="relative pl-24 pb-12 group">
+                
+                <div class="absolute left-6 top-0 -translate-x-1/2 flex flex-col items-center z-10 bg-bg py-2">
+                    <div class="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-500 shadow-lg"
+                         :class="{
+                            'border-border text-textSub bg-card': stageStatus(stage) === 'pending',
+                            'border-primary text-primary bg-card shadow-glow-purple scale-110': stageStatus(stage) === 'processing',
+                            'border-success text-success bg-card shadow-glow-green': stageStatus(stage) === 'completed'
+                         }">
+                        <i v-if="stageStatus(stage) === 'completed'" class="ph-fill ph-check text-2xl"></i>
+                        <i v-else-if="stageStatus(stage) === 'processing'" class="ph-fill ph-spinner animate-spin text-2xl"></i>
+                        <i v-else :class="stage.icon + ' text-2xl'"></i>
+                    </div>
+                </div>
+
+                <div class="glass-card border rounded-xl p-6 relative group overflow-hidden"
+                     :class="{
+                        'border-border': stageStatus(stage) === 'pending',
+                        'border-primary/60 shadow-glow-purple': stageStatus(stage) === 'processing',
+                        'border-success/50 shadow-glow-green': stageStatus(stage) === 'completed'
+                     }">
+                    
+                    <div class="flex justify-between items-start mb-6 z-10 relative">
+                        <div>
+                            <div class="flex items-center gap-3 mb-1">
+                                <span class="text-xs font-mono text-textSub opacity-50">NO.0{{ index + 1 }}</span>
+                                <h2 class="text-lg font-bold text-white tracking-wide">{{ stage.title }}</h2>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border transition-colors duration-300"
+                                      :class="{
+                                          'bg-gray-800 border-gray-700 text-gray-500': stageStatus(stage) === 'pending',
+                                          'bg-primary/10 border-primary/30 text-primary': stageStatus(stage) === 'processing',
+                                          'bg-success/10 border-success/30 text-success': stageStatus(stage) === 'completed'
+                                      }">
+                                    {{ statusLabel(stage) }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-textSub">{{ stage.desc }}</p>
+                        </div>
+                        
+                        <div class="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 hover:border-white/20 transition-colors cursor-pointer">
+                            <span class="text-[10px] text-textSub">负责人</span>
+                            <div class="flex items-center gap-2">
+                                <img :src="stage.ownerAvatar" class="w-6 h-6 rounded-full">
+                                <span class="text-xs text-white font-medium">{{ stage.ownerName }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-2">
+                        
+                        <div class="lg:col-span-7 space-y-3">
+                            <h3 class="text-[10px] font-bold text-textSub uppercase tracking-wider mb-2">任务检查清单</h3>
+                            <div v-for="(task, tIndex) in stage.tasks" :key="tIndex" 
+                                 class="checkbox-wrapper flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-white/5 transition-all cursor-pointer group/item"
+                                 @click="toggleTask(index, tIndex)">
+                                
+                                <input type="checkbox" class="hidden" :checked="task.done">
+                                <div class="w-5 h-5 rounded border border-gray-600 bg-gray-900 flex items-center justify-center transition-all group-hover/item:border-gray-400">
+                                    <svg class="w-3 h-3 text-white transform scale-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                </div>
+                                
+                                <span class="text-sm transition-colors" 
+                                      :class="task.done ? 'text-gray-500 line-through' : 'text-gray-200'">
+                                    {{ task.name }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 flex flex-col h-full bg-[#020203] rounded-lg border border-white/5 p-4">
+                            <h3 class="text-[10px] font-bold text-textSub uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <i class="ph ph-clock"></i> 排期设置
+                            </h3>
+                            
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <div>
+                                    <label class="block text-[10px] text-textSub mb-1">开始日期</label>
+                                    <input type="date" v-model="stage.startDate" class="w-full bg-[#18181b] border border-border rounded px-2 py-1.5 text-xs text-white focus:border-primary focus:outline-none transition-colors">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-textSub mb-1">结束日期</label>
+                                    <input type="date" v-model="stage.endDate" class="w-full bg-[#18181b] border border-border rounded px-2 py-1.5 text-xs text-white focus:border-primary focus:outline-none transition-colors">
+                                </div>
+                            </div>
+
+                            <div class="mt-auto">
+                                <div class="flex justify-between items-center text-[10px] mb-1">
+                                    <span class="text-textSub">预估工期</span>
+                                    <span class="text-white font-mono font-bold">{{ calculateDuration(stage.startDate, stage.endDate) }} 天</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden flex">
+                                    <div class="h-full bg-primary transition-all duration-500" :style="{ width: calculateProgress(stage) + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="h-20 flex items-center justify-center text-textSub text-xs">
+                - END OF WORKFLOW -
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    // 模拟项目数据
+                    stages: [
+                        {
+                            title: "策划与立项",
+                            desc: "确定核心创意、视觉风格、完成故事脚本大纲与分场。",
+                            icon: "ph-lightbulb",
+                            status: "completed", // initial state override by logic
+                            startDate: "2025-11-01",
+                            endDate: "2025-11-05",
+                            ownerName: "Sarah L.",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=2",
+                            tasks: [
+                                { name: "核心创意 Logline 确认", done: true },
+                                { name: "视觉风格参考板 (Moodboard)", done: true },
+                                { name: "文字脚本 (Script) 定稿", done: true }
+                            ]
+                        },
+                        {
+                            title: "AI 基础资产构建",
+                            desc: "训练角色LoRA、统一场景风格、准备核心道具资产。",
+                            icon: "ph-cube",
+                            startDate: "2025-11-06",
+                            endDate: "2025-11-15",
+                            ownerName: "Mike Chen",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=3",
+                            tasks: [
+                                { name: "主角模型训练 (LoRA) v2.0", done: true },
+                                { name: "场景概念图生成 (10/10)", done: true },
+                                { name: "道具/车辆三视图一致性检查", done: false }
+                            ]
+                        },
+                        {
+                            title: "分镜脚本 (Storyboard)",
+                            desc: "根据文字脚本生成静态关键帧，确认构图与光影。",
+                            icon: "ph-image",
+                            startDate: "2025-11-16",
+                            endDate: "2025-11-20",
+                            ownerName: "Anna Wu",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=4",
+                            tasks: [
+                                { name: "分镜头 Prompt 编写", done: false },
+                                { name: "关键帧首图生成", done: false },
+                                { name: "导演画面审核", done: false }
+                            ]
+                        },
+                        {
+                            title: "动态生成 (Motion)",
+                            desc: "图生视频 (I2V)，控制运镜、动态幅度与物理规律。",
+                            icon: "ph-film-strip",
+                            startDate: "2025-11-21",
+                            endDate: "2025-11-30",
+                            ownerName: "David K.",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=5",
+                            tasks: [
+                                { name: "Runway/Kling 批量生成", done: false },
+                                { name: "运镜 Zoom/Pan 修正", done: false },
+                                { name: "表情崩坏检查", done: false }
+                            ]
+                        },
+                        {
+                            title: "资产盘点与审核",
+                            desc: "剔除废片，进行4K画质增强与插帧补全。",
+                            icon: "ph-magnifying-glass",
+                            startDate: "2025-12-01",
+                            endDate: "2025-12-03",
+                            ownerName: "Alex Li",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=1",
+                            tasks: [
+                                { name: "废片剔除 (Pass Rate > 80%)", done: false },
+                                { name: "画质 Upscale (Topaz)", done: false },
+                                { name: "插帧补全 (60fps)", done: false }
+                            ]
+                        },
+                        {
+                            title: "声音工程",
+                            desc: "TTS配音生成、口型同步 (Lip-Sync)、音效与BGM。",
+                            icon: "ph-speaker-high",
+                            startDate: "2025-12-05",
+                            endDate: "2025-12-07",
+                            ownerName: "Sonic Studio",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=7",
+                            tasks: [
+                                { name: "AI 配音生成 (ElevenLabs)", done: false },
+                                { name: "口型同步 (HeyGen/SyncLabs)", done: false },
+                                { name: "环境音效与配乐合成", done: false }
+                            ]
+                        },
+                        {
+                            title: "最终剪辑与交付",
+                            desc: "剪辑合成、调色、字幕制作与最终渲染。",
+                            icon: "ph-scissors",
+                            startDate: "2025-12-08",
+                            endDate: "2025-12-10",
+                            ownerName: "Editor X",
+                            ownerAvatar: "https://i.pravatar.cc/150?u=8",
+                            tasks: [
+                                { name: "粗剪 (Rough Cut)", done: false },
+                                { name: "调色 (Color Grading)", done: false },
+                                { name: "成片渲染导出", done: false }
+                            ]
+                        }
+                    ]
+                }
+            },
+            computed: {
+                // 计算全局项目进度
+                overallProgress() {
+                    let totalTasks = 0;
+                    let completedTasks = 0;
+                    this.stages.forEach(stage => {
+                        totalTasks += stage.tasks.length;
+                        completedTasks += stage.tasks.filter(t => t.done).length;
+                    });
+                    return Math.round((completedTasks / totalTasks) * 100);
+                }
+            },
+            methods: {
+                // 切换任务状态
+                toggleTask(stageIndex, taskIndex) {
+                    this.stages[stageIndex].tasks[taskIndex].done = !this.stages[stageIndex].tasks[taskIndex].done;
+                },
+                // 判断当前阶段状态：pending | processing | completed
+                stageStatus(stage) {
+                    const total = stage.tasks.length;
+                    const done = stage.tasks.filter(t => t.done).length;
+                    if (done === 0) return 'pending';
+                    if (done === total) return 'completed';
+                    return 'processing';
+                },
+                // 获取状态中文标签
+                statusLabel(stage) {
+                    const status = this.stageStatus(stage);
+                    const map = {
+                        'pending': '未开始',
+                        'processing': '进行中',
+                        'completed': '已完成'
+                    };
+                    return map[status];
+                },
+                // 计算该阶段内部进度百分比
+                calculateProgress(stage) {
+                    const total = stage.tasks.length;
+                    const done = stage.tasks.filter(t => t.done).length;
+                    return (done / total) * 100;
+                },
+                // 计算日期天数差
+                calculateDuration(start, end) {
+                    if (!start || !end) return 0;
+                    const startDate = new Date(start);
+                    const endDate = new Date(end);
+                    const diffTime = Math.abs(endDate - startDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    return diffDays + 1; // 包含当天
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
