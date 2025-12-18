@@ -103,6 +103,11 @@ export const useCanvasState = () => {
         }
     }, []);
 
+    const clearCanvas = useCallback(() => {
+        setState(prev => ({ ...prev, items: [], selectedIds: [] }));
+        pushToHistory([]);
+    }, [pushToHistory]);
+
     // Memoize the return value to avoid unnecessary re-renders of consumers (Toolbar)
     const result = useMemo(() => ({
         state,
@@ -120,6 +125,7 @@ export const useCanvasState = () => {
         undo,
         redo,
         saveHistory,
+        clearCanvas,
         canUndo: historyIndexRef.current > 0,
         canRedo: historyIndexRef.current < historyRef.current.length - 1
     }), [

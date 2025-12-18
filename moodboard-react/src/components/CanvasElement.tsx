@@ -100,7 +100,7 @@ const CanvasElement: React.FC<CanvasElementProps> = ({ item, isSelected, onMouse
                 );
             case 'shape':
                 const shapeClasses = clsx(
-                    "w-full h-full flex items-center justify-center border-2 border-zinc-500 bg-zinc-800/50",
+                    "w-full h-full flex items-center justify-center border-2 border-[#E2B343] bg-transparent", // Wireframe style
                     item.shapeType === 'circle' && "rounded-full",
                     item.shapeType === 'square' && "rounded-lg",
                     item.shapeType === 'triangle' && "!bg-transparent !border-0"
@@ -109,13 +109,10 @@ const CanvasElement: React.FC<CanvasElementProps> = ({ item, isSelected, onMouse
                 if (item.shapeType === 'triangle') {
                     return (
                         <div className="w-full h-full relative">
-                            <div className="w-0 h-0 border-l-[transparent] border-r-[transparent] border-b-zinc-500/80 absolute inset-0"
-                                style={{
-                                    borderLeftWidth: `${(item.width || 0) / 2}px`,
-                                    borderRightWidth: `${(item.width || 0) / 2}px`,
-                                    borderBottomWidth: `${item.height}px`
-                                }}
-                            />
+                            {/* Triangle Wireframe using SVG for cleaner look or border hack */}
+                            <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                                <polygon points="50,0 100,100 0,100" fill="none" stroke="#E2B343" strokeWidth="4" vectorEffect="non-scaling-stroke" />
+                            </svg>
                         </div>
                     );
                 }

@@ -1,13 +1,14 @@
 import React from 'react';
-import { Minus, Plus, Maximize } from 'lucide-react';
+import { Minus, Plus, Maximize, Trash2 } from 'lucide-react';
 
 interface ZoomControlsProps {
     scale: number;
     setScale: (scale: number) => void;
     onFitScreen: () => void;
+    onClear?: () => void;
 }
 
-const ZoomControls: React.FC<ZoomControlsProps> = ({ scale, setScale, onFitScreen }) => {
+const ZoomControls: React.FC<ZoomControlsProps> = ({ scale, setScale, onFitScreen, onClear }) => {
     return (
         <div className="fixed bottom-10 right-8 z-50 flex items-center gap-3">
             <div className="bg-zinc-900/65 backdrop-blur-md px-3 py-2 rounded-xl flex items-center gap-3 border border-white/10 shadow-xl">
@@ -34,6 +35,13 @@ const ZoomControls: React.FC<ZoomControlsProps> = ({ scale, setScale, onFitScree
                 title="适配屏幕"
             >
                 <Maximize className="w-4 h-4" />
+            </button>
+            <button
+                onClick={onClear}
+                className="bg-zinc-900/65 backdrop-blur-md w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-red-500 transition border border-white/10 shadow-xl"
+                title="清空画布"
+            >
+                <Trash2 className="w-4 h-4" />
             </button>
         </div>
     );

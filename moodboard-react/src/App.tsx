@@ -55,14 +55,8 @@ function App() {
   const { state, setScale, setPanOffset, setActiveTool, addItem } = canvasState;
   const { setActiveShape } = canvasState;
 
-  // Add Example Data
-  useEffect(() => {
-    // Only if empty
-    if (state.items.length === 0) {
-      addItem({ id: '1', type: 'image', x: 600, y: 300, width: 320, height: 213, rotation: -2, content: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000&auto=format&fit=crop' });
-      addItem({ id: '2', type: 'note', x: 900, y: 250, width: 200, height: 200, rotation: 3, content: '拖拽图片进来看效果！' });
-    }
-  }, []);
+  // Example Data Removed
+
 
   return (
     <div className="w-screen h-screen bg-[#0F0F11] text-white overflow-hidden select-none">
@@ -89,6 +83,7 @@ function App() {
         scale={state.scale}
         setScale={setScale}
         onFitScreen={() => { setScale(1); setPanOffset({ x: 0, y: 0 }); }}
+        onClear={canvasState.clearCanvas}
       />
 
     </div>

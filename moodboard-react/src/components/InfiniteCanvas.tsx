@@ -15,6 +15,7 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
         deleteItems, saveHistory
     } = canvasState;
     const containerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [interaction, setInteraction] = useState<{
         mode: 'none' | 'panning' | 'dragging' | 'resizing' | 'drawing_arrow' | 'drawing_pen' | 'drawing_shape' | 'erasing' | 'arrow_handle';
@@ -173,13 +174,16 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
                     newItem = { id, type: 'text', x: pt.x, y: pt.y - 30, width: 300, height: 60, fontSize: 36, content: 'Type Here' };
                     break;
                 case 'image':
-                    const url = prompt("Image URL");
-                    if (url) newItem = { id, type: 'image', x: pt.x, y: pt.y, width: 300, height: 200, content: url };
-                    break;
+                    if (fileInputRef.current) {
+                        fileInputRef.current.setAttribute('data-x', pt.x.toString());
+                        fileInputRef.current.setAttribute('data-y', pt.y.toString());
+                        fileInputRef.current.click();
+                    }
+                    return;
             }
             if (newItem) {
                 addItem(newItem);
-                saveHistory(); // Auto save for click creates
+                saveHistory();
                 selectItem(newItem.id);
                 setActiveTool('select');
             }
@@ -187,10 +191,11 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
         }
 
         // --- Background Click (Deselect) ---
-        // Only if we are in select mode and didn't hit a STOP propagation event from a child.
         if (state.activeTool === 'select') {
-            // We can check e.target to see if it's the container or content wrapper.
-            if (e.target === containerRef.current || (e.target as HTMLElement).id === 'canvas-content' || (e.target as HTMLElement).tagName === 'svg') {
+            // We can use e.target to verify if we hit the container or our content wrapper
+            // Due to z-indexing, if we hit the SVG wrapper, that counts as background.
+            const target = e.target as HTMLElement;
+            if (target === containerRef.current || target.id === 'canvas-content' || target.tagName === 'svg') {
                 selectItem(null);
                 containerRef.current.setPointerCapture(e.pointerId);
                 setInteraction({
@@ -206,7 +211,10 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
     // --- ERASER ---
     const handleEraser = (clientX: number, clientY: number) => {
         const elements = document.elementsFromPoint(clientX, clientY);
-        const hitId = elements.find(el => el.hasAttribute('data-id'))?.getAttribute('data-id');
+        // Find FIRST valid hit, could be SVG path or HTML element
+        const hitEl = elements.find(el => el.hasAttribute('data-id'));
+        const hitId = hitEl?.getAttribute('data-id');
+
         if (hitId) {
             deleteItems([hitId]);
             return;
@@ -260,11 +268,6 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
             updateItem(item.id, updates);
         }
         else if (interaction.mode === 'arrow_handle' && interaction.initialItem && interaction.resizeHandle) {
-            // Arrow Handle logic
-            // start: x,y. end: x+w, y+h.
-            // If resizing start: x moves, y moves. But End (x+w, y+h) must remain constant.
-            // If resizing end: w moves, h moves.
-
             const scaleDx = dx / state.scale;
             const scaleDy = dy / state.scale;
             const item = interaction.initialItem;
@@ -277,8 +280,6 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
             if (interaction.resizeHandle === 'start') {
                 const newStartX = oldStartX + scaleDx;
                 const newStartY = oldStartY + scaleDy;
-                // End must stay at oldEndX, oldEndY
-                // newW = oldEndX - newStartX
                 updateItem(item.id, {
                     x: newStartX,
                     y: newStartY,
@@ -322,13 +323,10 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
 
     // --- POINTER UP ---
     const handlePointerUp = () => {
-        // Only save history if valid mode
         if (['dragging', 'resizing', 'drawing_arrow', 'drawing_pen', 'drawing_shape', 'arrow_handle'].includes(interaction.mode)) {
-            // Check for valid Shape
             if (interaction.mode === 'drawing_shape' && interaction.initialItem) {
                 const item = state.items.find(i => i.id === interaction.initialItem?.id);
                 if (item && (item.width || 0) < 5 && (item.height || 0) < 5) {
-                    // Too small -> Default size
                     updateItem(item.id, { width: 100, height: 100 });
                 }
             }
@@ -336,20 +334,10 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
         }
 
         setInteraction({ mode: 'none', startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
-
-        // Auto-switch disabled for continuous creation
-        // if (['arrow', 'shape'].includes(state.activeTool)) {
-        //    setActiveTool('select');
-        // }
     };
 
-    // Explicit Drag Handler
     const handleElementMouseDown = (e: React.PointerEvent, item: CanvasItem) => {
-        if (state.activeTool !== 'select') {
-            // If Arrow Tool is active, we might want to interact with arrow handles? 
-            // But usually creating a new one.
-            return;
-        }
+        if (state.activeTool !== 'select') return;
 
         e.stopPropagation();
         selectItem(item.id);
@@ -397,26 +385,61 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const pt = getCanvasPoint(e.clientX, e.clientY);
+            const pt = getCanvasPoint(e.clientX, e.clientY);
+            processFile(file, pt.x, pt.y);
+        }
+    };
+
+    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && fileInputRef.current) {
+            const x = parseFloat(fileInputRef.current.getAttribute('data-x') || '0');
+            const y = parseFloat(fileInputRef.current.getAttribute('data-y') || '0');
+            processFile(file, x, y);
+            e.target.value = '';
+        }
+    };
+
+    const processFile = (file: File, x: number, y: number) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                let w = img.width;
+                let h = img.height;
+                if (w > 400) {
+                    h = (400 / w) * h;
+                    w = 400;
+                }
                 addItem({
                     id: uuidv4(),
                     type: 'image',
-                    x: pt.x,
-                    y: pt.y,
-                    width: 300,
-                    height: 200,
+                    x: x,
+                    y: y,
+                    width: w,
+                    height: h,
                     content: ev.target?.result as string
                 });
                 saveHistory();
+                setActiveTool('select');
             };
-            reader.readAsDataURL(file);
-        }
+            img.src = ev.target?.result as string;
+        };
+        reader.readAsDataURL(file);
     };
 
     const bgSize = 24 * state.scale;
     const bgPos = `${state.panOffset.x % bgSize}px ${state.panOffset.y % bgSize}px`;
+
+    // Separate items by type but maintain global order for correct z-index
+    // The previous implementation separated Pen/Arrow into an SVG layer ON TOP of HTML layer.
+    // This caused Pen/Arrow to ALWAYS be on top of images/notes, regardless of creation order.
+    // To respect Z-index based on creation time (array order), we must render them in a single loop.
+    // HOWEVER, Pen strokes are SVG paths, while Images/Notes are HTML divs.
+    // We can't nest HTML inside SVG easily (foreignObject has issues).
+    // Better approach: 
+    // Render ONE SVG layer for ALL paths/arrows at the bottom (if we accept they are below HTML) ? NO.
+    // Render individual SVGs for each Pen/Arrow item interleaved with HTML items? YES.
 
     return (
         <div
@@ -439,6 +462,14 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
         >
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileInputChange}
+            />
+
             <div
                 id="canvas-content"
                 style={{
@@ -446,86 +477,87 @@ const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({ canvasState }) => {
                     transformOrigin: '0 0',
                     width: '100%', height: '100%',
                     position: 'absolute',
-                    pointerEvents: 'none'
                 }}
             >
-                {/* SVG Layer for Pen/Arrow */}
-                <svg className="absolute top-0 left-0 w-full h-full overflow-visible pointer-events-none">
-                    {/* pointer-events-none on wrapper, auto on children to allow hitting paths but passing through empty space */}
-                    {state.items.filter(i => i.type === 'pen').map(item => (
-                        <path
-                            key={item.id}
-                            data-id={item.id}
-                            d={item.content}
-                            stroke={item.strokeColor || '#E2B343'}
-                            strokeWidth={item.strokeWidth || 5}
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="pointer-events-auto cursor-crosshair"
-                            onPointerDown={(e) => handleElementMouseDown(e, item)}
-                        />
-                    ))}
-                    {state.items.filter(i => i.type === 'arrow').map(item => {
+                {state.items.map(item => {
+                    // Render Pen/Arrow as individual SVGs to maintain z-order with HTML elements
+                    if (item.type === 'pen') {
+                        return (
+                            <svg key={item.id} className="absolute top-0 left-0 w-full h-full overflow-visible pointer-events-none z-10">
+                                <path
+                                    data-id={item.id}
+                                    d={item.content}
+                                    stroke={item.strokeColor || '#E2B343'}
+                                    strokeWidth={item.strokeWidth || 5}
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="pointer-events-auto cursor-crosshair"
+                                    onPointerDown={(e) => handleElementMouseDown(e, item)}
+                                />
+                            </svg>
+                        );
+                    }
+                    if (item.type === 'arrow') {
                         const startX = item.x;
                         const startY = item.y;
                         const endX = startX + (item.width || 0);
                         const endY = startY + (item.height || 0);
                         const isSelected = state.selectedIds.includes(item.id);
                         return (
-                            <g key={item.id} data-id={item.id} className="pointer-events-auto">
-                                <defs>
-                                    <marker id={`arrowhead-${item.id}`} markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                                        <polygon points="0 0, 10 3.5, 0 7" fill="#E2B343" />
-                                    </marker>
-                                </defs>
-                                <line
-                                    x1={startX} y1={startY}
-                                    x2={endX} y2={endY}
-                                    stroke={isSelected ? "#E2B343" : "#E2B343"} // Highlight if selected?
-                                    strokeWidth={isSelected ? "6" : "4"}
-                                    markerEnd={`url(#arrowhead-${item.id})`}
-                                />
-                                {/* Hit Area */}
-                                <line
-                                    x1={startX} y1={startY}
-                                    x2={endX} y2={endY}
-                                    stroke="transparent"
-                                    strokeWidth="20"
-                                    className="pointer-events-auto cursor-grab"
-                                    onPointerDown={(e) => handleElementMouseDown(e, item)}
-                                />
-
-                                {/* Control Points */}
-                                {isSelected && (
-                                    <>
-                                        <circle
-                                            cx={startX} cy={startY} r="6" fill="#E2B343" stroke="white" strokeWidth="2"
-                                            style={{ cursor: 'move', pointerEvents: 'auto' }}
-                                            onPointerDown={(e) => handleArrowHandleDown(e, item, 'start')}
-                                        />
-                                        <circle
-                                            cx={endX} cy={endY} r="6" fill="#E2B343" stroke="white" strokeWidth="2"
-                                            style={{ cursor: 'move', pointerEvents: 'auto' }}
-                                            onPointerDown={(e) => handleArrowHandleDown(e, item, 'end')}
-                                        />
-                                    </>
-                                )}
-                            </g>
+                            <svg key={item.id} className="absolute top-0 left-0 w-full h-full overflow-visible pointer-events-none z-10">
+                                <g data-id={item.id} className="pointer-events-auto">
+                                    <defs>
+                                        <marker id={`arrowhead-${item.id}`} markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                                            <polygon points="0 0, 10 3.5, 0 7" fill="#E2B343" />
+                                        </marker>
+                                    </defs>
+                                    <line
+                                        x1={startX} y1={startY}
+                                        x2={endX} y2={endY}
+                                        stroke={isSelected ? "#E2B343" : "#E2B343"}
+                                        strokeWidth={isSelected ? "6" : "4"}
+                                        markerEnd={`url(#arrowhead-${item.id})`}
+                                    />
+                                    {/* Hit Area */}
+                                    <line
+                                        x1={startX} y1={startY}
+                                        x2={endX} y2={endY}
+                                        stroke="transparent"
+                                        strokeWidth="20"
+                                        className="pointer-events-auto cursor-grab"
+                                        onPointerDown={(e) => handleElementMouseDown(e, item)}
+                                    />
+                                    {isSelected && (
+                                        <>
+                                            <circle
+                                                cx={startX} cy={startY} r="6" fill="#E2B343" stroke="white" strokeWidth="2"
+                                                style={{ cursor: 'move', pointerEvents: 'auto' }}
+                                                onPointerDown={(e) => handleArrowHandleDown(e, item, 'start')}
+                                            />
+                                            <circle
+                                                cx={endX} cy={endY} r="6" fill="#E2B343" stroke="white" strokeWidth="2"
+                                                style={{ cursor: 'move', pointerEvents: 'auto' }}
+                                                onPointerDown={(e) => handleArrowHandleDown(e, item, 'end')}
+                                            />
+                                        </>
+                                    )}
+                                </g>
+                            </svg>
                         );
-                    })}
-                </svg>
+                    }
 
-                {state.items.filter(i => i.type !== 'pen' && i.type !== 'arrow').map(item => (
-                    <CanvasElement
-                        key={item.id}
-                        item={item}
-                        isSelected={state.selectedIds.includes(item.id)}
-                        onMouseDown={(e) => handleElementMouseDown(e, item)}
-                        onResizeStart={handleResizeStart}
-                        onUpdate={(updates) => updateItem(item.id, updates)}
-                    />
-                ))}
+                    return (
+                        <CanvasElement
+                            key={item.id}
+                            item={item}
+                            isSelected={state.selectedIds.includes(item.id)}
+                            onMouseDown={(e) => handleElementMouseDown(e, item)}
+                            onResizeStart={handleResizeStart}
+                            onUpdate={(updates) => updateItem(item.id, updates)}
+                        />
+                    );
+                })}
             </div>
         </div>
     );
