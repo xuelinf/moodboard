@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-[#0F0F11] text-[#E4E4E7] font-sans antialiased overflow-hidden select-none;
+  }
+}
+
+.infinite-canvas {
+  background-color: #0F0F11;
+  background-image: radial-gradient(#27272a 1px, transparent 1px);
+  background-size: 24px 24px;
+}

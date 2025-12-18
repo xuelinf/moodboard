@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineFlow - 影视无限情绪板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0F0F11;
+            /* 极深灰背景 */
+            overflow: hidden;
+            /* 无限画布通常隐藏滚动条 */
+            color: #E4E4E7;
+            user-select: none;
+            /* Prevent text selection during drag */
+        }
+
+        /* 模拟无限画布的点阵背景 */
+        .infinite-canvas {
+            width: 100vw;
+            height: 100vh;
+            background-color: #0F0F11;
+            background-image: radial-gradient(#27272a 1px, transparent 1px);
+            background-size: 24px 24px;
+            overflow: hidden;
+            position: relative;
+            touch-action: none;
+            /* Prevent native touch gestures */
+        }
+
+        /* 画布内容层，用于变换 */
+        #canvas-content {
+            transform-origin: 0 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            /* Let events pass through to container when not hitting elements */
+        }
+
+        /* 极简毛玻璃效果工具栏 */
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 选中状态的发光 */
+        .tool-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #E2B343;
+            /* 电影金 */
+            border: 1px solid rgba(226, 179, 67, 0.3);
+        }
+
+        /* 元素的模拟 */
+        .canvas-element {
+            position: absolute;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid transparent;
+            transition: border 0.1s, box-shadow 0.1s;
+            pointer-events: auto;
+            /* Re-enable pointer events */
+            cursor: grab;
+        }
+
+        .canvas-element.selected {
+            border: 1px solid #E2B343;
+            box-shadow: 0 0 0 2px rgba(226, 179, 67, 0.3), 0 8px 30px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .canvas-element:hover {
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .canvas-element.selected:hover {
+            border: 1px solid #E2B343;
+        }
+
+        /* Resize Handles */
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #E2B343;
+            border: 1px solid white;
+            border-radius: 50%;
+            z-index: 20;
+            display: none;
+        }
+
+        .canvas-element.selected .resize-handle {
+            display: block;
+        }
+
+        .handle-nw {
+            top: -6px;
+            left: -6px;
+            cursor: nwse-resize;
+        }
+
+        .handle-ne {
+            top: -6px;
+            right: -6px;
+            cursor: nesw-resize;
+        }
+
+        .handle-sw {
+            bottom: -6px;
+            left: -6px;
+            cursor: nesw-resize;
+        }
+
+        .handle-se {
+            bottom: -6px;
+            right: -6px;
+            cursor: nwse-resize;
+        }
+
+        /* 贴纸效果 */
+        .sticky-note {
+            background: linear-gradient(135deg, #fef08a, #facc15);
+            color: #422006;
+            font-family: 'Comic Sans MS', cursive;
+            /* 模拟手写感 */
+        }
+
+        .cursor-grab {
+            cursor: grab;
+        }
+
+        .cursor-grabbing {
+            cursor: grabbing;
+        }
+
+        .cursor-crosshair {
+            cursor: crosshair;
+        }
+
+        /* 抓手模式覆盖 */
+        .pan-mode .infinite-canvas {
+            cursor: grab;
+        }
+
+        .pan-mode .infinite-canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Shape Selection Menu */
+        .shape-menu {
+            position: absolute;
+            bottom: 60px;
+            /* above toolbar */
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 8px;
+            background: rgba(24, 24, 27, 0.9);
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 60;
+        }
+
+        .shape-menu.show {
+            display: flex;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="fixed top-6 left-8 z-50 flex items-center gap-4 pointer-events-none select-none">
+        <div class="pointer-events-auto text-xl font-bold tracking-tight text-white/90">CineFlow <span
+                class="text-[10px] px-1.5 py-0.5 rounded border border-white/20 text-white/40 font-normal">V2.0</span>
+        </div>
+        <div class="h-4 w-[1px] bg-white/10"></div>
+        <div class="text-sm text-zinc-400">项目：赛博朋克短片 - 场景Moodboard</div>
+        <div class="px-2 py-0.5 bg-zinc-800/50 rounded text-xs text-zinc-500 border border-zinc-700/50">已自动保存</div>
+    </div>
+
+    <!-- Infinite Canvas Container -->
+    <div id="canvas-container" class="infinite-canvas">
+        <!-- Content Layer for Transforms -->
+        <div id="canvas-content">
+
+            <!-- Examples -->
+            <div class="canvas-element rounded-lg overflow-hidden w-80"
+                style="transform: translate(600px, 300px) rotate(-2deg); width: 320px;" data-type="image">
+                <img src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1000&auto=format&fit=crop"
+                    class="w-full h-full object-cover pointer-events-none" draggable="false">
+                <div class="resize-handle handle-nw" data-handle="nw"></div>
+                <div class="resize-handle handle-ne" data-handle="ne"></div>
+                <div class="resize-handle handle-sw" data-handle="sw"></div>
+                <div class="resize-handle handle-se" data-handle="se"></div>
+            </div>
+
+            <div class="canvas-element sticky-note w-48 p-4 shadow-lg"
+                style="transform: translate(900px, 250px) rotate(3deg); width: 192px;" data-type="note">
+                <p class="text-sm font-medium leading-relaxed pointer-events-none">拖拽图片进来看效果！</p>
+                <div class="resize-handle handle-nw" data-handle="nw"></div>
+                <div class="resize-handle handle-ne" data-handle="ne"></div>
+                <div class="resize-handle handle-sw" data-handle="sw"></div>
+                <div class="resize-handle handle-se" data-handle="se"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Tool Bar -->
+    <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50">
+
+        <!-- Shape Selection Popover -->
+        <div id="shape-menu" class="shape-menu">
+            <button class="w-8 h-8 rounded bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center"
+                onclick="setShape('circle')" title="圆形">
+                <div class="w-4 h-4 rounded-full border border-white"></div>
+            </button>
+            <button class="w-8 h-8 rounded bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center"
+                onclick="setShape('square')" title="方形">
+                <div class="w-4 h-4 border border-white"></div>
+            </button>
+            <button class="w-8 h-8 rounded bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center"
+                onclick="setShape('triangle')" title="三角形">
+                <div
+                    class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-white">
+                </div>
+            </button>
+        </div>
+
+        <div class="glass-panel px-4 py-3 rounded-2xl flex items-center gap-2">
+
+            <button
+                class="tool-btn active w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white transition group relative"
+                title="选择 (V)" data-tool="select">
+                <i data-lucide="mouse-pointer-2" class="w-5 h-5"></i>
+            </button>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="抓手 (Space)" data-tool="hand">
+                <i data-lucide="hand" class="w-5 h-5"></i>
+            </button>
+
+            <div class="w-[1px] h-6 bg-white/10 mx-1"></div>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="便签" data-tool="note">
+                <i data-lucide="sticky-note" class="w-5 h-5"></i>
+            </button>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="文本 (T)" data-tool="text">
+                <i data-lucide="type" class="w-5 h-5"></i>
+            </button>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="上传媒体" data-tool="image">
+                <i data-lucide="image" class="w-5 h-5"></i>
+            </button>
+
+            <div class="w-[1px] h-6 bg-white/10 mx-1"></div>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="形状" data-tool="shape">
+                <i data-lucide="shapes" class="w-5 h-5"></i>
+            </button>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="箭头" data-tool="arrow">
+                <i data-lucide="arrow-up-right" class="w-5 h-5"></i>
+            </button>
+
+            <button
+                class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition"
+                title="手写批注" data-tool="pen">
+                <i data-lucide="pen-tool" class="w-5 h-5"></i>
+            </button>
+
+        </div>
+        <div
+            class="absolute -bottom-8 w-full text-center text-[10px] text-zinc-600 opacity-60 hover:opacity-100 transition duration-500">
+            Space 抓手 • 拖拽图片上传 • 双击编辑文本
+        </div>
+    </div>
+
+    <!-- Zoom Controls -->
+    <div class="fixed bottom-10 right-8 z-50 flex items-center gap-3">
+        <div class="glass-panel px-3 py-2 rounded-xl flex items-center gap-3">
+            <button id="zoom-out" class="text-zinc-400 hover:text-white transition"><i data-lucide="minus"
+                    class="w-4 h-4"></i></button>
+            <span id="zoom-level" class="text-xs font-mono w-10 text-center text-zinc-300 select-none">100%</span>
+            <button id="zoom-in" class="text-zinc-400 hover:text-white transition"><i data-lucide="plus"
+                    class="w-4 h-4"></i></button>
+        </div>
+        <button id="fit-screen"
+            class="glass-panel w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white transition"
+            title="适配屏幕"><i data-lucide="maximize" class="w-4 h-4"></i></button>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // State Machine
+        const state = {
+            scale: 1,
+            panOffset: { x: 0, y: 0 },
+            activeTool: 'select',
+            selectedShape: 'circle', // default shape
+            isSpacePressed: false,
+
+            // Interaction States
+            isPanning: false,
+            isDragging: false,
+            isResizing: false,
+            isDrawingArrow: false,
+            isDrawingPen: false,
+
+            // Variables for interactions
+            startX: 0,
+            startY: 0, // Screen coords
+            startPan: { x: 0, y: 0 },
+
+            // For dragging/resizing
+            targetElement: null,
+            initialElPos: { x: 0, y: 0 }, // Translate x/y
+            initialElSize: { w: 0, h: 0 },
+            resizeHandle: null, // nw, ne, sw, se
+
+            // For Drawing
+            currentSvg: null, // The SVG element being drawn
+            currentPath: null // The path/line element
+        };
+
+        const container = document.getElementById('canvas-container');
+        const content = document.getElementById('canvas-content');
+        const zoomLevelDisplay = document.getElementById('zoom-level');
+        const toolBtns = document.querySelectorAll('.tool-btn');
+        const shapeMenu = document.getElementById('shape-menu');
+
+        // --- Helpers ---
+        function getCanvasPoint(e) {
+            const rect = container.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left - state.panOffset.x) / state.scale,
+                y: (e.clientY - rect.top - state.panOffset.y) / state.scale
+            };
+        }
+
+        function updateTransform() {
+            content.style.transform = `translate(${state.panOffset.x}px, ${state.panOffset.y}px) scale(${state.scale})`;
+            const bgX = state.panOffset.x % (24 * state.scale);
+            const bgY = state.panOffset.y % (24 * state.scale);
+            const bgSize = 24 * state.scale;
+            container.style.backgroundPosition = `${bgX}px ${bgY}px`;
+            container.style.backgroundSize = `${bgSize}px ${bgSize}px`;
+            zoomLevelDisplay.innerText = `${Math.round(state.scale * 100)}%`;
+        }
+
+        function createHandles(el) {
+            // Check if handles exist
+            if (el.querySelector('.resize-handle')) return;
+            // Don't add handles to Pen strokes (SVGs) unless wrapper
+            if (el.tagName.toLowerCase() === 'svg' && el.style.width === '100%') return;
+
+            const handles = ['nw', 'ne', 'sw', 'se'];
+            handles.forEach(h => {
+                const div = document.createElement('div');
+                div.className = `resize-handle handle-${h}`;
+                div.dataset.handle = h;
+                el.appendChild(div);
+            });
+        }
+
+        function selectElement(el) {
+            deselectAll();
+            el.classList.add('selected');
+            createHandles(el);
+            state.targetElement = el;
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.canvas-element').forEach(el => el.classList.remove('selected'));
+            state.targetElement = null;
+        }
+
+        // --- Toolbar Logic ---
+        toolBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tool = btn.dataset.tool;
+                if (tool === 'shape') {
+                    // Show shape menu
+                    shapeMenu.classList.toggle('show');
+                } else {
+                    shapeMenu.classList.remove('show');
+                }
+
+                if (state.activeTool !== tool) {
+                    state.activeTool = tool;
+                    toolBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    // Cursor update
+                    if (tool === 'hand') container.style.cursor = 'grab';
+                    else if (tool === 'pen' || tool === 'arrow') container.style.cursor = 'crosshair';
+                    else container.style.cursor = 'default';
+
+                    deselectAll();
+                }
+            });
+        });
+
+        // Shape Selection
+        window.setShape = (shape) => {
+            state.selectedShape = shape;
+            state.activeTool = 'shape';
+            shapeMenu.classList.remove('show');
+            toolBtns.forEach(b => b.classList.remove('active'));
+            document.querySelector('[data-tool="shape"]').classList.add('active');
+        };
+
+        // --- Drag & Drop Files ---
+        container.addEventListener('dragover', (e) => { e.preventDefault(); });
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const pt = getCanvasPoint(e);
+                    createImageElement(ev.target.result, pt.x, pt.y);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function createImageElement(src, x, y) {
+            const div = document.createElement('div');
+            // Initial size 300px width
+            div.className = 'canvas-element rounded-lg overflow-hidden';
+            div.style.transform = `translate(${x}px, ${y}px)`;
+            div.style.width = '300px';
+            div.dataset.type = 'image';
+            div.innerHTML = `<img src="${src}" class="w-full h-full object-cover pointer-events-none" draggable="false">`;
+            content.appendChild(div);
+            selectElement(div);
+            // Switch to select tool
+            document.querySelector('[data-tool="select"]').click();
+        }
+
+        // --- Interaction Handlers ---
+        container.addEventListener('pointerdown', (e) => {
+            const targetEl = e.target.closest('.canvas-element');
+            const handleEl = e.target.closest('.resize-handle');
+
+            state.startX = e.clientX;
+            state.startY = e.clientY;
+
+            // 1. Resizing
+            if (handleEl && state.activeTool === 'select') {
+                e.preventDefault();
+                e.stopPropagation();
+                state.isResizing = true;
+                state.resizeHandle = handleEl.dataset.handle;
+                state.targetElement = targetEl; // Should be parental element
+
+                // Get initial values
+                const style = window.getComputedStyle(state.targetElement);
+                const transform = state.targetElement.style.transform;
+                const translateMatch = transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+
+                state.initialElPos = {
+                    x: translateMatch ? parseFloat(translateMatch[1]) : 0,
+                    y: translateMatch ? parseFloat(translateMatch[2]) : 0
+                };
+                state.initialElSize = {
+                    w: parseFloat(style.width),
+                    h: parseFloat(style.height)
+                };
+                return;
+            }
+
+            // 2. Hand Mode / panning
+            if (state.activeTool === 'hand' || state.isSpacePressed || e.button === 1) {
+                state.isPanning = true;
+                state.startPan = { ...state.panOffset };
+                container.style.cursor = 'grabbing';
+                return;
+            }
+
+            // 3. Drawing Arrow
+            if (state.activeTool === 'arrow') {
+                state.isDrawingArrow = true;
+                const pt = getCanvasPoint(e);
+                // Create SVG container for Arrow
+                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.classList.add('canvas-element');
+                svg.style.overflow = 'visible';
+                svg.style.width = '1px'; // Minimal size, path will overflow
+                svg.style.height = '1px';
+                svg.style.transform = `translate(${pt.x}px, ${pt.y}px)`;
+                // Fix: pointer-events none initially to let mouse through if needed, but we needed to track mouse on container
+                svg.style.pointerEvents = 'none';
+
+                // Marker
+                // Unique ID for marker
+                const uid = Date.now();
+                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                defs.innerHTML = `<marker id="arrowhead-${uid}" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#E2B343" /></marker>`;
+                svg.appendChild(defs);
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", 0);
+                line.setAttribute("y1", 0);
+                line.setAttribute("x2", 0);
+                line.setAttribute("y2", 0);
+                line.setAttribute("stroke", "#E2B343");
+                line.setAttribute("stroke-width", "4");
+                line.setAttribute("marker-end", `url(#arrowhead-${uid})`);
+
+                svg.appendChild(line);
+                content.appendChild(svg);
+
+                state.currentSvg = svg;
+                state.currentPath = line;
+                state.initialElPos = { x: pt.x, y: pt.y }; // Store start point
+                return;
+            }
+
+            // 4. Drawing Pen
+            if (state.activeTool === 'pen') {
+                state.isDrawingPen = true;
+                const pt = getCanvasPoint(e);
+
+                // We create a global Pen Layer SVG if not exists? No, create one per stroke is safer for this demo.
+                // But full screen SVG is heavy.
+                // Better: Create SVG at 0,0 of Content.
+                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.classList.add('canvas-element');
+                svg.style.overflow = 'visible';
+                svg.style.pointerEvents = 'none'; // Pen strokes don't capture mouse by default
+                svg.style.width = '1px';
+                svg.style.height = '1px';
+                svg.style.position = 'absolute';
+                // Transform to 0,0? No, we draw in absolute coords maybe?
+                // If we transform to 0,0, then we use Canvas Coords for path.
+                svg.style.transform = `translate(0px, 0px)`;
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${pt.x} ${pt.y}`);
+                path.setAttribute("stroke", "#E2B343");
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke-linecap", "round");
+                path.setAttribute("stroke-linejoin", "round");
+
+                svg.appendChild(path);
+                content.appendChild(svg);
+
+                state.currentSvg = svg;
+                state.currentPath = path;
+                return;
+            }
+
+            // 5. Select / Dragging Element
+            if (state.activeTool === 'select' && targetEl) {
+                state.isDragging = true;
+                state.targetElement = targetEl;
+                selectElement(targetEl);
+
+                // Get current transform
+                const style = targetEl.style.transform || '';
+                const translateMatch = style.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+                state.initialElPos = {
+                    x: translateMatch ? parseFloat(translateMatch[1]) : 0,
+                    y: translateMatch ? parseFloat(translateMatch[2]) : 0
+                };
+                e.stopPropagation();
+            } else if (state.activeTool !== 'select' && state.activeTool !== 'hand' && state.activeTool !== 'pen' && state.activeTool !== 'arrow') {
+                // Creating Note/Text/Shape/Image (Click to create)
+                const pt = getCanvasPoint(e);
+                createElement(state.activeTool, pt.x, pt.y);
+                document.querySelector('[data-tool="select"]').click(); // Auto switch
+            } else {
+                // Clicked empty space
+                deselectAll();
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            const dx = e.clientX - state.startX;
+            const dy = e.clientY - state.startY;
+
+            if (state.isPanning) {
+                state.panOffset.x = state.startPan.x + dx;
+                state.panOffset.y = state.startPan.y + dy;
+                updateTransform();
+            }
+
+            if (state.isDragging && state.targetElement) {
+                const scaleDx = dx / state.scale;
+                const scaleDy = dy / state.scale;
+
+                // Keep rotation
+                const rotateMatch = state.targetElement.style.transform.match(/rotate\([^)]+\)/);
+                const rotateStr = rotateMatch ? rotateMatch[0] : '';
+
+                const newX = state.initialElPos.x + scaleDx;
+                const newY = state.initialElPos.y + scaleDy;
+
+                state.targetElement.style.transform = `translate(${newX}px, ${newY}px) ${rotateStr}`;
+            }
+
+            if (state.isResizing && state.targetElement) {
+                const scaleDx = dx / state.scale;
+                const scaleDy = dy / state.scale;
+
+                let newW = state.initialElSize.w;
+                let newH = state.initialElSize.h;
+                let newX = state.initialElPos.x;
+                let newY = state.initialElPos.y;
+
+                // Logic depends on handle
+                if (state.resizeHandle.includes('e')) newW = state.initialElSize.w + scaleDx;
+                if (state.resizeHandle.includes('s')) newH = state.initialElSize.h + scaleDy;
+                if (state.resizeHandle.includes('w')) {
+                    newW = state.initialElSize.w - scaleDx;
+                    newX = state.initialElPos.x + scaleDx;
+                }
+                if (state.resizeHandle.includes('n')) {
+                    newH = state.initialElSize.h - scaleDy;
+                    newY = state.initialElPos.y + scaleDy;
+                }
+
+                // Min dimensions
+                if (newW < 20) newW = 20;
+                if (newH < 20) newH = 20;
+
+                state.targetElement.style.width = `${newW}px`;
+                state.targetElement.style.height = `${newH}px`;
+
+                // For position updates
+                if (state.resizeHandle.includes('w') || state.resizeHandle.includes('n')) {
+                    const rotateMatch = state.targetElement.style.transform.match(/rotate\([^)]+\)/);
+                    const rotateStr = rotateMatch ? rotateMatch[0] : '';
+                    state.targetElement.style.transform = `translate(${newX}px, ${newY}px) ${rotateStr}`;
+                }
+            }
+
+            if (state.isDrawingArrow && state.currentPath) {
+                const pt = getCanvasPoint(e);
+                // endpoint is relative to start point (initialElPos)
+                const relX = pt.x - state.initialElPos.x;
+                const relY = pt.y - state.initialElPos.y;
+                state.currentPath.setAttribute("x2", relX);
+                state.currentPath.setAttribute("y2", relY);
+            }
+
+            if (state.isDrawingPen && state.currentPath) {
+                const pt = getCanvasPoint(e);
+                const d = state.currentPath.getAttribute("d");
+                state.currentPath.setAttribute("d", `${d} L ${pt.x} ${pt.y}`);
+            }
+        });
+
+        window.addEventListener('pointerup', () => {
+            state.isPanning = false;
+            state.isDragging = false;
+            state.isResizing = false;
+            if (state.activeTool === 'hand') container.style.cursor = 'grab';
+            else if (state.activeTool === 'select') container.style.cursor = 'default';
+
+            if (state.isDrawingArrow) {
+                state.isDrawingArrow = false;
+                state.currentPath = null;
+                document.querySelector('[data-tool="select"]').click();
+            }
+
+            if (state.isDrawingPen) {
+                state.isDrawingPen = false;
+                state.currentPath = null;
+                document.querySelector('[data-tool="select"]').click();
+            }
+        });
+
+        // Key Events
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !state.isSpacePressed) {
+                state.isSpacePressed = true;
+                container.style.cursor = 'grab';
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                state.isSpacePressed = false;
+                if (state.activeTool !== 'hand') container.style.cursor = 'default';
+            }
+        });
+
+        // Zoom Listeners (existing)
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const scaleDelta = -Math.sign(e.deltaY) * 0.1;
+            const newScale = Math.max(0.1, Math.min(5, state.scale + scaleDelta));
+
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            state.panOffset.x = mouseX - (mouseX - state.panOffset.x) * (newScale / state.scale);
+            state.panOffset.y = mouseY - (mouseY - state.panOffset.y) * (newScale / state.scale);
+            state.scale = newScale;
+            updateTransform();
+        }, { passive: false });
+
+        document.getElementById('zoom-in').addEventListener('click', () => { state.scale += 0.1; updateTransform(); });
+        document.getElementById('zoom-out').addEventListener('click', () => { state.scale -= 0.1; updateTransform(); });
+        document.getElementById('fit-screen').addEventListener('click', () => { state.scale = 1; state.panOffset = { x: 0, y: 0 }; updateTransform(); });
+
+        // Double Click Edit
+        container.addEventListener('dblclick', (e) => {
+            const target = e.target.closest('.canvas-element');
+            if (target && (target.dataset.type === 'text' || target.dataset.type === 'note')) {
+                const t = target.querySelector('p, h1');
+                if (t) {
+                    t.contentEditable = true;
+                    t.focus();
+                    target.draggable = false;
+                    t.onblur = () => { t.contentEditable = false; target.draggable = true; };
+                }
+            }
+        });
+
+        // Element Creation Helpers
+        function createElement(tool, x, y) {
+            let div = document.createElement('div');
+            div.style.transform = `translate(${x}px, ${y}px)`;
+            div.className = 'canvas-element';
+
+            switch (tool) {
+                case 'note':
+                    div.classList.add('sticky-note', 'w-48', 'p-4', 'shadow-lg');
+                    div.dataset.type = 'note';
+                    div.innerHTML = `<p class="text-sm font-medium leading-relaxed pointer-events-none">New Note</p>`;
+                    div.style.width = '192px';
+                    break;
+                case 'text':
+                    div.dataset.type = 'text';
+                    div.style.border = 'none'; div.style.boxShadow = 'none';
+                    div.innerHTML = `<h1 class="text-4xl font-light tracking-widest text-white uppercase select-none pointer-events-none">Type Here</h1>`;
+                    break;
+                case 'shape':
+                    div.dataset.type = 'shape';
+                    div.className = 'canvas-element flex items-center justify-center bg-zinc-800/50 border-2 border-zinc-500';
+                    div.style.width = '128px'; div.style.height = '128px';
+                    if (state.selectedShape === 'circle') div.classList.add('rounded-full');
+                    if (state.selectedShape === 'square') div.classList.add('rounded-lg');
+                    if (state.selectedShape === 'triangle') {
+                        div.className = 'canvas-element'; // Reset
+                        div.style.background = 'transparent'; div.style.border = 'none'; div.style.boxShadow = 'none';
+                        div.innerHTML = `<div class="w-0 h-0 border-l-[64px] border-l-transparent border-r-[64px] border-r-transparent border-b-[100px] border-b-zinc-500/80"></div>`;
+                    }
+                    break;
+                case 'image':
+                    // Fallback if button clicked
+                    const url = prompt("Image URL");
+                    if (url) createImageElement(url, x, y);
+                    return;
+            }
+            if (div.innerHTML) {
+                content.appendChild(div);
+                selectElement(div);
+            }
+        }
+
+        updateTransform();
+
+    </script>
+</body>
+
+</html>
