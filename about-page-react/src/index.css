@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-deep: #050505;
+  --color-text-main: #ffffff;
+  --color-text-sub: #9ca3af;
+  --color-accent: #6366f1;
+  --color-border-light: rgba(255, 255, 255, 0.1);
+
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", "Heiti SC", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-deep text-text-main font-sans;
+    overflow-x: hidden;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.fade-in-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
