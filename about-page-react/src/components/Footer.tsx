@@ -2,7 +2,7 @@
 
 export const Footer = () => {
     return (
-        <footer className="py-[80px] px-[20px] text-center border-t border-border-light bg-gradient-to-t from-black to-[#050505]">
+        <footer className="py-[80px] px-[20px] text-center border-t border-border-light bg-transparent relative z-10">
             <h3 className="text-[2rem] mb-[30px] font-bold">Ready to Direct?</h3>
             <p className="text-[#666] mb-[30px]">加入 43 LENS，重掌创作主导权</p>
             <a

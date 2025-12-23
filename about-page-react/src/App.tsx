@@ -54,10 +54,16 @@ function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-bg-deep text-text-main font-sans selection:bg-accent selection:text-white">
+    <div className="min-h-screen text-text-main font-sans selection:bg-accent selection:text-white relative">
+      <div className="fixed inset-0 bg-bg-deep" style={{ zIndex: -50 }}>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1a1b2e] via-[#050505] to-[#000000] opacity-100" />
+        <div className="absolute top-0 right-0 w-[800px] h-[600px] bg-accent/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+        <div className="absolute bottom-[-100px] left-[-100px] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+      </div>
+
       <Navbar />
       <Hero />
-      <main className="relative z-20 bg-bg-deep pb-[100px]">
+      <main className="relative z-20 pb-[100px]">
         {features.map((feature, idx) => (
           <React.Fragment key={idx}>
             <FeatureRow {...feature} />

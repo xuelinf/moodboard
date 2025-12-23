@@ -48,22 +48,22 @@ export const Hero = () => {
             {/* Parallax Background */}
             <div
                 ref={heroBgRef}
-                className="absolute top-0 left-0 w-full h-[120%] -z-10 bg-[radial-gradient(circle_at_50%_30%,_#1a1b2e_0%,_#050505_60%)] will-change-transform translate-z-0"
+                className="absolute top-0 left-0 w-full h-[120%] z-[-10] bg-[radial-gradient(circle_at_50%_30%,_#1a1b2e_0%,_#050505_60%)] will-change-transform translate-z-0"
             />
             <div
                 ref={heroLayer2Ref}
-                className="absolute top-[-20%] left-[-10%] w-[120%] h-[140%] -z-10 bg-[linear-gradient(45deg,rgba(99,102,241,0.08)_0%,transparent_40%,rgba(139,92,246,0.08)_100%)] opacity-100 will-change-transform translate-z-0 pointer-events-none mix-blend-screen"
+                className="absolute top-[-20%] left-[-10%] w-[120%] h-[140%] z-[-10] bg-[linear-gradient(45deg,rgba(99,102,241,0.08)_0%,transparent_40%,rgba(139,92,246,0.08)_100%)] opacity-100 will-change-transform translate-z-0 pointer-events-none mix-blend-screen"
             />
             <div
                 ref={heroOrbRef}
-                className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] -z-15 bg-[radial-gradient(circle,rgba(99,102,241,0.15)_0%,transparent_70%)] rounded-full blur-3xl will-change-transform translate-z-0 pointer-events-none mix-blend-screen"
+                className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] z-[-15] bg-[radial-gradient(circle,rgba(99,102,241,0.15)_0%,transparent_70%)] rounded-full blur-3xl will-change-transform translate-z-0 pointer-events-none mix-blend-screen"
             />
             <div
                 ref={heroGradientRef}
-                className="absolute top-[-50%] left-[-20%] w-[150%] h-[150%] -z-25 bg-[conic-gradient(from_0deg_at_50%_50%,_rgba(99,102,241,0.05)_0deg,_transparent_60deg,_rgba(139,92,246,0.05)_120deg,_transparent_180deg)] blur-3xl will-change-transform translate-z-0 pointer-events-none"
+                className="absolute top-[-50%] left-[-20%] w-[150%] h-[150%] z-[-25] bg-[conic-gradient(from_0deg_at_50%_50%,_rgba(99,102,241,0.05)_0deg,_transparent_60deg,_rgba(139,92,246,0.05)_120deg,_transparent_180deg)] blur-3xl will-change-transform translate-z-0 pointer-events-none"
             />
             <div
-                className="absolute inset-0 -z-30 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100px_100px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none"
+                className="absolute inset-0 z-[-30] bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100px_100px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none"
             />
 
             {/* Video Stage */}
