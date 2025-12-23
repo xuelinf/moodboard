@@ -19,7 +19,7 @@ export const FeatureRow = ({ number, title, description, imageSrc, isReverse }: 
             {/* Text Info */}
             <div className="flex-[0.8] w-full relative">
                 {/* Large Background Number */}
-                <span className="absolute -top-20 -left-4 text-[12rem] font-bold text-white/[0.03] select-none -z-10 leading-none font-sans">
+                <span className="absolute -top-36 -left-4 text-[12rem] font-bold text-white/[0.03] select-none z-[-10] leading-none font-sans">
                     {number.split(' ')[0]}
                 </span>
 
